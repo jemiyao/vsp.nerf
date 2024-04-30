@@ -1,8 +1,16 @@
 import os
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 import sys
 import tensorflow as tf
+
+tf.compat.v1.enable_eager_execution()
+config = tf.compat.v1.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.8
+config.gpu_options.allow_growth = True
+sess = tf.compat.v1.Session(config = config)
+
 import numpy as np
 import imageio
 import json
@@ -750,8 +758,10 @@ def train():
     print('VAL views are', i_val)
 
     # Summary writers
-    writer = tf.contrib.summary.create_file_writer(
-        os.path.join(basedir, 'summaries', expname))
+    # writer = tf.contrib.summary.create_file_writer(
+    #    os.path.join(basedir, 'summaries', expname))
+
+    writer = tf.summary.create_file_writer(os.path.join(basedir, 'summaries', expname))
     writer.set_as_default()
 
     for i in range(start, N_iters):
@@ -875,12 +885,18 @@ def train():
 
             print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
             print('iter time {:.05f}'.format(dt))
-            with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_print):
-                tf.contrib.summary.scalar('loss', loss)
-                tf.contrib.summary.scalar('psnr', psnr)
-                tf.contrib.summary.histogram('tran', trans)
+            # with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_print):
+            #     tf.contrib.summary.scalar('loss', loss)
+            #     tf.contrib.summary.scalar('psnr', psnr)
+            #     tf.contrib.summary.histogram('tran', trans)
+            #     if args.N_importance > 0:
+            #         tf.contrib.summary.scalar('psnr0', psnr0)
+            with tf.summary.record_if(global_step % args.i_print == 0):
+                tf.summary.scalar('loss', loss, step = global_step)
+                tf.summary.scalar('psnr', psnr, step = global_step)
+                tf.summary.histogram('tran', trans, step = global_step)
                 if args.N_importance > 0:
-                    tf.contrib.summary.scalar('psnr0', psnr0)
+                    tf.summary.scalar('psnr0', psnr0, step = global_step)
 
             if i % args.i_img == 0:
 
@@ -900,26 +916,38 @@ def train():
                     os.makedirs(testimgdir, exist_ok=True)
                 imageio.imwrite(os.path.join(testimgdir, '{:06d}.png'.format(i)), to8b(rgb))
 
-                with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
+                # with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
 
-                    tf.contrib.summary.image('rgb', to8b(rgb)[tf.newaxis])
-                    tf.contrib.summary.image(
-                        'disp', disp[tf.newaxis, ..., tf.newaxis])
-                    tf.contrib.summary.image(
-                        'acc', acc[tf.newaxis, ..., tf.newaxis])
+                #     tf.contrib.summary.image('rgb', to8b(rgb)[tf.newaxis])
+                #     tf.contrib.summary.image(
+                #         'disp', disp[tf.newaxis, ..., tf.newaxis])
+                #     tf.contrib.summary.image(
+                #         'acc', acc[tf.newaxis, ..., tf.newaxis])
 
-                    tf.contrib.summary.scalar('psnr_holdout', psnr)
-                    tf.contrib.summary.image('rgb_holdout', target[tf.newaxis])
+                #     tf.contrib.summary.scalar('psnr_holdout', psnr)
+                #     tf.contrib.summary.image('rgb_holdout', target[tf.newaxis])
+
+                # if args.N_importance > 0:
+
+                #     with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
+                #         tf.contrib.summary.image(
+                #             'rgb0', to8b(extras['rgb0'])[tf.newaxis])
+                #         tf.contrib.summary.image(
+                #             'disp0', extras['disp0'][tf.newaxis, ..., tf.newaxis])
+                #         tf.contrib.summary.image(
+                #             'z_std', extras['z_std'][tf.newaxis, ..., tf.newaxis])
+                with tf.summary.record_if(global_step % args.i_img == 0):
+                    tf.summary.image('rgb', to8b(rgb)[tf.newaxis], step=global_step)
+                    tf.summary.image('disp', disp[tf.newaxis, ..., tf.newaxis], step=global_step)
+                    tf.summary.image('acc', acc[tf.newaxis, ..., tf.newaxis], step=global_step)
+                    tf.summary.scalar('psnr_holdout', psnr, step=global_step)
+                    tf.summary.image('rgb_holdout', target[tf.newaxis], step=global_step)
 
                 if args.N_importance > 0:
-
-                    with tf.contrib.summary.record_summaries_every_n_global_steps(args.i_img):
-                        tf.contrib.summary.image(
-                            'rgb0', to8b(extras['rgb0'])[tf.newaxis])
-                        tf.contrib.summary.image(
-                            'disp0', extras['disp0'][tf.newaxis, ..., tf.newaxis])
-                        tf.contrib.summary.image(
-                            'z_std', extras['z_std'][tf.newaxis, ..., tf.newaxis])
+                    with tf.summary.record_if(global_step % args.i_img == 0):
+                        tf.summary.image('rgb0', to8b(extras['rgb0'])[tf.newaxis], step=global_step)
+                        tf.summary.image('disp0', extras['disp0'][tf.newaxis, ..., tf.newaxis], step=global_step)
+                        tf.summary.image('z_std', extras['z_std'][tf.newaxis, ..., tf.newaxis], step=global_step)
 
         global_step.assign_add(1)
 
